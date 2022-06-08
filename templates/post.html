@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<meta charset="utf-8">
+<script>
+
+
+
+
+</script>
+</head>
+<body>
+<h1>Registration</h1>
+<form name="registration" action="http://127.0.0.1:5000/post_job" method="post">
+<input type="text" name="jobtitle" placeholder="Job Title" required />
+<input type="text" name="jobcompany" placeholder="Company Name" required />
+<input type="number" name="jobsalary" placeholder="Salary" required />
+<label for="cars">Choose category:</label>
+<select name="jobcategory" id="">
+<option value="App development">App development</option>    
+<option value="Cloud computing">Cloud computing</option>
+<option value="Database management">Database management</option>
+<option value="Web development">Web development</option>    
+<option value="Internet of things">Internet of things</option>
+<option value="Ui/Ux">Ui/Ux</option>
+<option value="Machine Learning">Machine Learning</option>
+<option value="data science">data science</option>
+<option value="cyber security">cyber security</option>
+<option value="game development">game development</option>
+<option value="Software development">Software development</option>
+</select>
+<br><br>
+<label for="selecttime">TYPE:</label><br><br>
+intern <input type="radio"  name="type" value="intern">
+full time<input type="radio" name="type" value="full time">
+<input  type="text" name="location" placeholder="location">
+<input type="submit" value="Register" />
+</form>
+</body>
+</html>

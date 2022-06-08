@@ -1,0 +1,37 @@
+<html>
+    <head>
+<title>
+
+</title>
+<script>
+ 
+const userAction = async () => {
+
+async function init(){
+const response = await fetch('http://127.0.0.1:5000/getscore');
+const myJson = await response.json(); 
+console.log(myJson);
+}
+init();
+}
+userAction();
+
+</script>
+</head>
+<body>
+<header>
+
+</header>    
+<form action="http://127.0.0.1:5000/user_details" method="post" enctype="multipart/form-data">
+
+    Name:<input type="text" name="name">
+    email:<input type="email" name="email" required>
+    Password :<input type="password" name="password"> 
+    GPA : <input type="text">
+    UPLOAD RESUME  : <input type="file" name="files[]">
+    <input type="submit">
+</form>
+
+
+</body>
+</html>
