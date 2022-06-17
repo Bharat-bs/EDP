@@ -1,6 +1,7 @@
-from flask import Flask, jsonify, render_template, request, json
+from flask import Flask, jsonify, render_template, request, json,send_file
 from pyresparser import ResumeParser
 from flask_cors import CORS, cross_origin
+import pandas as pd
 import flask
 import urllib.request
 from werkzeug.utils import secure_filename
@@ -8,6 +9,7 @@ import PyPDF2
 import requests
 import os
 import pymongo
+from bson import ObjectId
 
 app = Flask(__name__)
 CORS(app)
@@ -23,13 +25,23 @@ print("Connecting to mongodb")
 myclient = pymongo.MongoClient("mongodb://localhost:27017/")
 mydb = myclient["findmyjob"]
 print("connected")
+# mycol = mydb["user_data"]
+# mycol.update_many({}, {"$set":{"user_skills": []}})
+# mycol.update_many({}, {"$set":{"recived_job":""}})
 #
 current_user = "123"
 user_type = "client"
 current_email = ""
 current_user_id = ""
+current_company_id=""
 #
-
+# df2 = pd.read_excel('EDP2.xlsx')
+df2 = pd.read_csv('EDP3.csv')
+df2 = df2.set_index(df2['Unnamed: 0'])
+df2.drop(['Unnamed: 0'], axis=1)
+dictt = df2.to_dict()
+del dictt['Unnamed: 0']
+#
 skills_required = {
     "App development": {"java": 5, "kotlin": 8, "android studio": 10, "flutter": 10, "swift": 10, "xamarin": 10,
                         "reactnative": 10},
@@ -97,7 +109,7 @@ def loginn():
     password = request.form["password"]
     mycol = mydb["user_data"]
     for x in mycol.find({"email": email_id, "password": password}):
-        global current_email,current_user,current_user_id,user_type
+        global current_email, current_user, current_user_id, user_type
         current_user = x["name"]
         current_email = email_id
         current_user_id = x["_id"]
@@ -112,7 +124,7 @@ def loginnn():
     password = request.form["password"]
     mycol = mydb["employer_data"]
     for x in mycol.find({"email": email_id, "password": password}):
-        global current_email,current_user,current_user_id,user_type
+        global current_email, current_user, current_user_id, user_type
         current_user = x["name"]
         current_email = email_id
         current_user_id = x["_id"]
@@ -156,7 +168,8 @@ def store_user_details():
     mycol = mydb["user_data"]
 
     mydict = {"name": name, "email": email, "password": password, "resume": email + "_resume.pdf"}
-    print(request.files)
+    mydict["user_skills"] = []
+    mydict["recived_job"] = ""
     x = mycol.insert_one(mydict)
     if 'files[]' not in request.files:
         resp = jsonify({'message': 'No file part in the request'})
@@ -177,15 +190,20 @@ def store_user_details():
         errors['message'] = 'File(s) successfully uploaded'
         resp = jsonify(errors)
         resp.status_code = 500
-        return resp
+        return render_template('login1.html')
     if success:
         resp = jsonify({'message': 'Files successfully uploaded'})
         resp.status_code = 201
-        return resp
+        return render_template('login1.html')
     else:
         resp = jsonify(errors)
         resp.status_code = 500
-        return resp
+        return render_template('login1.html')
+
+
+@app.route('/profile')
+def profile():
+    return render_template('profile.html')
 
 
 @app.route('/upload', methods=['POST'])
@@ -221,10 +239,10 @@ def upload_file():
 
 
 def load_file():
-    print(current_email,current_user)
+    print("email : " + current_email, "name : " + current_user)
     data = ResumeParser('Resumes/' + current_email + "_resume.pdf").get_extracted_data()
     # data = ResumeParser('Resumes/BHARAT_RESUME.pdf').get_extracted_data()
-    print(data)
+    print("skills : ", data['skills'])
     user_skills = data['skills']
     return user_skills
 
@@ -241,25 +259,29 @@ def calculate_skills():
              'Machine Learning': 0,
              'Maintenance and repair': 0,
              'Networks': 0,
+             'Ui/Ux': 0,
              'Robotics': 0,
              'Software development': 0,
              'cyber security': 0,
              'data science': 0,
              'game development': 0,
              'software testing': 0,
-             'Web development': 0}
-
+             'Web development': 0
+             }
+    recogonised_skills = set()
     for i in user_skills:
         i = parse_string(i)
         for j in keys:
-            if i in skills_required[j]:
-                indvidual_score = skills_required[j][i]
+            if i in dictt[j]:
+                recogonised_skills.add(i)
+                indvidual_score = dictt[j][i]
                 score[j] += indvidual_score
-    max_value = 0
-    max_key = ""
     sorted_dict = list(dict(sorted(score.items(), key=lambda item: item[1])))
     sorted_dict.reverse()
-
+    recogonised_skills = list(recogonised_skills)
+    print(recogonised_skills)
+    mycol2 = mydb["user_data"]
+    mycol2.update_one({'_id': current_user_id}, {"$set": {"user_skills": recogonised_skills}})
     mycol = mydb["jobs"]
     jobs_list = []
     send_jobs = []
@@ -273,9 +295,14 @@ def calculate_skills():
             cate = j['job_category']
             if i == cate:
                 send_jobs.append(j)
-    print(sorted_dict)
-    # return "bharat"
+
+    print("user strength : ", sorted_dict[0:2])
+    print("Recomendation category : ", sorted_dict)
+
     return jsonify(send_jobs)
+
+
+print(current_user_id)
 
 
 # calculate_skills()
@@ -285,11 +312,82 @@ def calculate_skills():
 @cross_origin(origin='*')
 def applied():
     data = request.json
-    data['current_user_id']=str(current_user_id)
+    data['current_user_id'] = str(current_user_id)
     mycol = mydb["applied_job"]
+    mycol2 = mydb["jobs"]
+    id = data["job_id"]
     x = mycol.insert_one(data)
+    x1 = mycol2.update_one({"_id": ObjectId(id)}, {"$set": {"job_status": 0}})
+    print(x1.raw_result)
     return "kjwdv"
 
+
+@app.route("/getapplied", methods=['GET'])
+@cross_origin(orgin="*")
+def getapplied():
+    mycol = mydb["applied_job"]
+    jobs_list = []
+    print(current_user_id)
+    # {'current_user_id': current_user_id}
+    # query = mycol.find({'current_user_id': str(current_user_id)})
+    query = mycol.find()
+    # query = mycol.find()
+    for i in query:
+        i["_id"] = str(i["_id"])
+        jobs_list.append(i)
+        user = i["current_user_id"]
+        query2 = mydb["user_data"].find_one({'_id':ObjectId(user)})
+        print(query2)
+        i["user_name"]=query2["name"]
+        i["user_email"]=query2["email"]
+        i["user_resume"]=query2["resume"]
+    print(jobs_list)
+    return jsonify(jobs_list)
+
+
+@app.route("/updateapplied", methods=['POST'])
+@cross_origin(orgin="*")
+def updateapplied():
+    mycol = mydb["applied_job"]
+    data = request.json
+    id = str(data["_id"])
+    print(id)
+    id2 = str(data["job_id"])
+    mycol.delete_one({'_id': ObjectId(id)})
+    mycol2 = mydb["jobs"]
+    x1 = mycol2.update_one({"_id": ObjectId(id2)}, {"$set": {"job_status": 1}})
+    return "123"
+
+
+@app.route("/selected", methods=['POST'])
+def update_selected():
+    data = request.json
+    mycol = mydb["user_data"]
+    print(data)
+    user = data["user_id"]
+    user = str(user)
+    print(user)
+    mycol2 = mydb["applied_jobs"]
+
+    job_cat = data["job_category"]
+    print(current_user_id)
+    query = mycol.find_one({"_id": ObjectId(user)})
+    print(query['user_skills'])
+    df3 = pd.read_csv('EDP3.csv')
+    df3 = df3.set_index(df3['Unnamed: 0'])
+    df3.drop(['Unnamed: 0'], axis=1)
+    dict3 = df3.to_dict()
+    del dict3['Unnamed: 0']
+    for i in query['user_skills']:
+        df3[job_cat][i] += 1
+        print(df3[job_cat][i])
+    df3.to_csv('EDP3.csv')
+    return 123
+
+@app.route('/downfile/<path:filename>', methods=['GET','POST'])
+def downfile(filename):
+    uploads = UPLOAD_FOLDER + filename
+    return send_file(uploads,as_attachment=True)
 
 if __name__ == "__main__":
     app.run(debug=True)
